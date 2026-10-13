@@ -7,19 +7,26 @@
 create schema if not exists extensions;
 create extension if not exists btree_gist with schema extensions;
 
--- Internal helpers live in "private", which PostgREST does not expose.
-create schema if not exists private;
-revoke all on schema private from public;
-grant usage on schema private to authenticated, service_role;
+-- Everything this app creates lives in two schemas of its own, so it can share
+-- a Supabase project with other apps without touching their objects:
+--   cabins          tables + API functions (add "cabins" to Supabase's Exposed schemas)
+--   cabins_private  internal helpers (never exposed through the API)
+-- Nothing is created in, or changed in, the "public" schema.
+create schema if not exists cabins;
+grant usage on schema cabins to anon, authenticated, service_role;
 
--- Functions are not executable by PUBLIC unless granted explicitly.
-alter default privileges in schema private revoke execute on functions from public;
-alter default privileges in schema public  revoke execute on functions from public;
+create schema if not exists cabins_private;
+revoke all on schema cabins_private from public;
+grant usage on schema cabins_private to authenticated, service_role;
+
+-- Functions in our schemas are not executable by PUBLIC unless granted explicitly.
+alter default privileges in schema cabins_private revoke execute on functions from public;
+alter default privileges in schema cabins          revoke execute on functions from public;
 
 -- -----------------------------------------------------------------------------
 -- updated_at trigger
 -- -----------------------------------------------------------------------------
-create or replace function private.touch_updated_at()
+create or replace function cabins_private.touch_updated_at()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -33,7 +40,7 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Office settings (exactly one row)
 -- -----------------------------------------------------------------------------
-create table if not exists public.office_settings (
+create table if not exists cabins.office_settings (
   id                        boolean primary key default true check (id),
   app_name                  text not null default 'Wealthy Office Cabin Booking'
                               check (char_length(app_name) between 3 and 80),
@@ -68,7 +75,7 @@ create table if not exists public.office_settings (
   constraint allowed_domains_present check (cardinality(allowed_email_domains) >= 1)
 );
 
-create or replace function private.validate_office_settings()
+create or replace function cabins_private.validate_office_settings()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -90,27 +97,27 @@ begin
 end;
 $$;
 
-drop trigger if exists office_settings_validate on public.office_settings;
+drop trigger if exists office_settings_validate on cabins.office_settings;
 create trigger office_settings_validate
-  before insert or update on public.office_settings
-  for each row execute function private.validate_office_settings();
+  before insert or update on cabins.office_settings
+  for each row execute function cabins_private.validate_office_settings();
 
-insert into public.office_settings (id) values (true) on conflict (id) do nothing;
+insert into cabins.office_settings (id) values (true) on conflict (id) do nothing;
 
-create or replace function private.settings()
-returns public.office_settings
+create or replace function cabins_private.settings()
+returns cabins.office_settings
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select s from public.office_settings s where s.id
+  select s from cabins.office_settings s where s.id
 $$;
 
 -- -----------------------------------------------------------------------------
 -- E-mail helpers
 -- -----------------------------------------------------------------------------
-create or replace function private.email_domain(p_email text)
+create or replace function cabins_private.email_domain(p_email text)
 returns text
 language sql
 immutable
@@ -121,7 +128,7 @@ $$;
 
 -- Exact (not suffix) match against the configured domains, so
 -- "x@evilwealthy.in" and "x@wealthy.in.example.com" are rejected.
-create or replace function private.is_allowed_email(p_email text)
+create or replace function cabins_private.is_allowed_email(p_email text)
 returns boolean
 language sql
 stable
@@ -130,10 +137,10 @@ set search_path = ''
 as $$
   select coalesce(
     p_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
-    and private.email_domain(p_email) = any ((private.settings()).allowed_email_domains),
+    and cabins_private.email_domain(p_email) = any ((cabins_private.settings()).allowed_email_domains),
     false)
 $$;
 
-grant execute on function private.email_domain(text)      to authenticated, service_role;
-grant execute on function private.is_allowed_email(text)  to authenticated, service_role;
-grant execute on function private.settings()              to authenticated, service_role;
+grant execute on function cabins_private.email_domain(text)      to authenticated, service_role;
+grant execute on function cabins_private.is_allowed_email(text)  to authenticated, service_role;
+grant execute on function cabins_private.settings()              to authenticated, service_role;

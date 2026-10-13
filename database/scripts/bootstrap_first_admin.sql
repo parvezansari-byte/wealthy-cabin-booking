@@ -12,7 +12,7 @@
 -- by an existing admin in Administration › Employees (audited).
 -- =============================================================================
 
-select private.bootstrap_first_admin('first.admin@wealthy.in');   -- ← replace the address
+select cabins_private.bootstrap_first_admin('first.admin@wealthy.in');   -- ← replace the address
 
 -- Check:
-select email, role, status from public.profiles where role = 'admin';
+select email, role, status from cabins.profiles where role = 'admin';

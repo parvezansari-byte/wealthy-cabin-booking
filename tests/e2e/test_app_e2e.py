@@ -113,8 +113,8 @@ def test_signup_verify_then_pending_until_approved(app_env):
     assert "needs to approve your access" in _texts(at)  # verified, but not yet authorised
 
     admin = db.admin()
-    uid = db.owner("select id from public.profiles where email = 'new.joiner@wealthy.in'")[0][0]
-    db.call(admin, "select public.admin_set_employee_status(%s, 'active')", (str(uid),))
+    uid = db.owner("select id from cabins.profiles where email = 'new.joiner@wealthy.in'")[0][0]
+    db.call(admin, "select cabins.admin_set_employee_status(%s, 'active')", (str(uid),))
     _labelled(at.button, "Check again").click()
     at.run()
     assert "Total cabins" in _texts(at)
@@ -136,7 +136,7 @@ def test_book_through_dialog_and_cancel(app_env, monkeypatch):
     at.run()
     assert not at.exception, at.exception
     assert "Reference **WCB-" in _texts(at) or "Reference WCB-" in _texts(at)
-    rows = db.owner("select title, status from public.bookings where user_id = %s", (uid,))
+    rows = db.owner("select title, status from cabins.bookings where user_id = %s", (uid,))
     assert rows == [("Design review", "confirmed")]
 
     at = _view(monkeypatch, "my_bookings", "booker@wealthy.in").run()
@@ -146,7 +146,7 @@ def test_book_through_dialog_and_cancel(app_env, monkeypatch):
     _labelled(at.button, "Yes, cancel it").click()
     at.run()
     assert not at.exception, at.exception
-    assert db.owner("select status from public.bookings where user_id = %s", (uid,))[0][0] == "cancelled"
+    assert db.owner("select status from cabins.bookings where user_id = %s", (uid,))[0][0] == "cancelled"
 
 
 def test_conflicting_booking_shows_clear_message(app_env, monkeypatch):
@@ -168,7 +168,7 @@ def test_conflicting_booking_shows_clear_message(app_env, monkeypatch):
     _labelled(at.button, "Confirm booking").click()
     at.run()
     assert "already booked" in _texts(at)
-    assert db.owner("select count(*) from public.bookings")[0][0] == 1
+    assert db.owner("select count(*) from cabins.bookings")[0][0] == 1
 
 
 def test_every_page_renders_for_employee_and_admin(app_env, monkeypatch):

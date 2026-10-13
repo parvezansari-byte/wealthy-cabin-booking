@@ -106,3 +106,23 @@ def test_rate_limiter_window():
     assert rl.allow("other")
     t[0] = 61
     assert rl.allow("k")
+
+
+def test_streamlit_cloud_secrets_are_used_when_env_is_empty(monkeypatch):
+    import streamlit
+
+    import config
+
+    for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "ALLOWED_EMAIL_DOMAIN", "NOTIFICATIONS_ENABLED"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(streamlit, "secrets", {
+        "SUPABASE_URL": "https://abc.supabase.co", "SUPABASE_ANON_KEY": "anon",
+        "ALLOWED_EMAIL_DOMAIN": "wealthy.in", "NOTIFICATIONS_ENABLED": False, "nested": {"x": 1}})
+    config.get_config.cache_clear()
+    try:
+        cfg = config.get_config()
+    finally:
+        config.get_config.cache_clear()
+    assert cfg.supabase_url == "https://abc.supabase.co"
+    assert cfg.allowed_email_domains == ("wealthy.in",)
+    assert cfg.notifications_enabled is False

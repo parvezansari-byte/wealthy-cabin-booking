@@ -168,7 +168,7 @@ class Query:
             fk, target_table = RELATIONS[(self.table, target, hint)]
             col_sql = sql.SQL(", ").join(sql.SQL("e0.{}").format(sql.Identifier(c.strip()))
                                          for c in cols.split(","))
-            items.append(sql.SQL("(select to_jsonb(e) from (select {} from public.{} e0 where e0.id = t.{}) e) as {}")
+            items.append(sql.SQL("(select to_jsonb(e) from (select {} from cabins.{} e0 where e0.id = t.{}) e) as {}")
                          .format(col_sql, sql.Identifier(target_table), sql.Identifier(fk),
                                  sql.Identifier(alias or target)))
         return sql.SQL(", ").join(items)
@@ -188,21 +188,21 @@ class Query:
             if self.off:
                 page += sql.SQL(" offset {}").format(sql.Literal(self.off))
             query = sql.SQL("select coalesce(jsonb_agg(to_jsonb(q)), '[]') from "
-                            "(select {} from public.{} t{}{}{}) q").format(
+                            "(select {} from cabins.{} t{}{}{}) q").format(
                 self._select_list(), tbl, where, order, page)
         elif self.mode == "update":
             sets = sql.SQL(", ").join(sql.SQL("{} = %s").format(sql.Identifier(k)) for k in self.payload)
             params = list(self.payload.values()) + params
-            query = sql.SQL("with t as (update public.{} t set {}{} returning t.*) "
+            query = sql.SQL("with t as (update cabins.{} t set {}{} returning t.*) "
                             "select coalesce(jsonb_agg(to_jsonb(t)), '[]') from t").format(tbl, sets, where)
         elif self.mode == "insert":
             cols = sql.SQL(", ").join(map(sql.Identifier, self.payload))
             vals = sql.SQL(", ").join(sql.Placeholder() for _ in self.payload)
             params = list(self.payload.values())
-            query = sql.SQL("with t as (insert into public.{} ({}) values ({}) returning *) "
+            query = sql.SQL("with t as (insert into cabins.{} ({}) values ({}) returning *) "
                             "select coalesce(jsonb_agg(to_jsonb(t)), '[]') from t").format(tbl, cols, vals)
         else:
-            query = sql.SQL("with t as (delete from public.{} t{} returning t.*) "
+            query = sql.SQL("with t as (delete from cabins.{} t{} returning t.*) "
                             "select coalesce(jsonb_agg(to_jsonb(t)), '[]') from t").format(tbl, where)
         return SimpleNamespace(data=self.b.as_user(query, params))
 
@@ -212,10 +212,10 @@ class Rpc:
         self.b, self.fn, self.params = backend, fn, params or {}
 
     def execute(self):
-        retset = self.b.owner("select proretset from pg_proc where proname = %s and pronamespace = 'public'::regnamespace",
+        retset = self.b.owner("select proretset from pg_proc where proname = %s and pronamespace = 'cabins'::regnamespace",
                               (self.fn,))
         args = sql.SQL(", ").join(sql.SQL("{} => %s").format(sql.Identifier(k)) for k in self.params)
-        call = sql.SQL("public.{}({})").format(sql.Identifier(self.fn), args)
+        call = sql.SQL("cabins.{}({})").format(sql.Identifier(self.fn), args)
         if retset and retset[0][0]:
             query = sql.SQL("select coalesce(jsonb_agg(to_jsonb(f)), '[]') from {} f").format(call)
         else:

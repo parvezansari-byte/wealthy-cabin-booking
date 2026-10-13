@@ -17,7 +17,7 @@
 
 **Database**
 - [ ] All six migrations applied; `select tablename, rowsecurity from pg_tables where schemaname='public'` → every row `true`
-- [ ] `select private.bootstrap_first_admin(...)` run once; exactly the intended people have `role = 'admin'`
+- [ ] `select cabins_private.bootstrap_first_admin(...)` run once; exactly the intended people have `role = 'admin'`
 - [ ] Access policy chosen (`approval` recommended) and allowlist populated
 - [ ] Nobody uses the service-role key from a laptop for day-to-day work
 - [ ] Do not delete users in Supabase → Authentication → Users: disable them in the app instead (deletion is deliberately blocked to keep booking history)
@@ -32,7 +32,7 @@
 
 | Threat | Control | Where |
 |---|---|---|
-| Personal or look-alike e-mail domains | exact domain match in DB trigger on `auth.users`, in `is_active_employee()`, and in the app | `0002`, `core/security.py` |
+| Personal or look-alike e-mail domains | app refuses them before calling Auth; no cabin profile is created for them; exact domain match re-checked in `is_active_employee()` | `0002`, `core/auth.py`, `core/security.py` |
 | Unverified mailbox | `email_confirmed_at` required by `is_active_employee()`; Supabase *Confirm email* | `0002` |
 | Verified address but not an employee | `approval` access policy + allowlist | `0002`, Admin › Employees |
 | Self-promotion to admin | no column grant on `role`/`status`, guard trigger, admin functions refuse self-changes, first admin only via SQL editor | `0002`, `0004`, `0005` |

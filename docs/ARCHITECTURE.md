@@ -44,7 +44,7 @@ flowchart LR
 1. The employee picks cabin, date, start and duration in the booking dialog. The end time is computed, never typed.
 2. The app validates the same rules locally for instant feedback (`core/booking_service.py`).
 3. The app calls `rpc('book_cabin', …)` **with the user's JWT**. There is no user-id parameter: the owner is always `auth.uid()`.
-4. Inside one transaction `public.book_cabin()` re-checks: active verified employee, domain, duration (min ≤ d ≤ 120), on whole minutes, not in the past, within the booking horizon, working day, office hours **in the office time zone**, cabin active, capacity, and maintenance blocks. It then takes a per-cabin advisory lock and inserts.
+4. Inside one transaction `cabins.book_cabin()` re-checks: active verified employee, domain, duration (min ≤ d ≤ 120), on whole minutes, not in the past, within the booking horizon, working day, office hours **in the office time zone**, cabin active, capacity, and maintenance blocks. It then takes a per-cabin advisory lock and inserts.
 5. The `bookings_no_overlap` exclusion constraint makes overlapping confirmed bookings for one cabin **impossible**, including under concurrent requests. A losing request gets `CABIN_ALREADY_BOOKED`.
 6. A `notification_logs` row is written in the same transaction. Only after the commit does the UI show "Booked … Reference WCB-xxxxxx".
 7. E-mail is sent after commit (immediately if the web service has SMTP configured, and by the cron job otherwise / on retry).
@@ -53,11 +53,12 @@ flowchart LR
 
 ### 3.1 Identity — who are you?
 * Supabase Auth proves identity: password (hashed by Supabase, never seen or stored by this app) plus **proof of mailbox ownership** via the 6-digit verification code or link.
-* A `BEFORE INSERT OR UPDATE OF email` trigger on `auth.users` rejects any address whose domain is not **exactly** an allowed domain (`x@evilwealthy.in`, `x@wealthy.in.example.com`, `x@sub.wealthy.in`, Gmail/Yahoo/Outlook… are all refused) — even if someone calls the Supabase Auth API directly and bypasses the app.
+* **Shared Supabase project.** The app is designed to live in a project used by other apps (e.g. the CRM): everything is created in the `cabins` and `cabins_private` schemas, nothing in `public` is created or changed, and sign-ups for other apps are never blocked. Instead, a trigger on `auth.users` creates a cabin profile **only** for addresses whose domain is **exactly** an allowed domain; any other login (`x@gmail.com`, `x@evilwealthy.in`, `x@wealthy.in.example.com`, `x@sub.wealthy.in`…) gets no profile, so RLS gives it no data and every booking function refuses it — even if someone calls the Supabase Auth API directly.
+* The app refuses non-company addresses before calling Supabase Auth at all (sign-up, sign-in, reset).
 * The app checks the domain again before every auth call and on every page load against the server-side `ALLOWED_EMAIL_DOMAIN`.
 
 ### 3.2 Authorisation — what may you do?
-A verified `@wealthy.in` address is **not** sufficient on its own. `private.is_active_employee()` is true only when **all** hold:
+A verified `@wealthy.in` address is **not** sufficient on its own. `cabins_private.is_active_employee()` is true only when **all** hold:
 
 | Check | Source |
 |---|---|
@@ -72,7 +73,7 @@ How a profile becomes active depends on `office_settings.access_policy`:
 
 Disabled profiles are never reactivated automatically, and their booking history is kept.
 
-**Roles.** `employee` or `admin`. Nobody can register as an admin. The very first admin is created by a project owner running `private.bootstrap_first_admin('…@wealthy.in')` in the Supabase SQL editor (not callable via the API, refuses if an admin exists or the e-mail is unverified). Later admins are promoted by an existing admin; admins cannot change their own role or access. Role/status columns have no API update grant, and a trigger blocks any change by the `authenticated` role as defence in depth.
+**Roles.** `employee` or `admin`. Nobody can register as an admin. The very first admin is created by a project owner running `cabins_private.bootstrap_first_admin('…@wealthy.in')` in the Supabase SQL editor (not callable via the API, refuses if an admin exists or the e-mail is unverified). Later admins are promoted by an existing admin; admins cannot change their own role or access. Role/status columns have no API update grant, and a trigger blocks any change by the `authenticated` role as defence in depth.
 
 ### 3.3 How RLS interacts with Supabase Auth
 
@@ -91,7 +92,7 @@ auth.uid() reads sub → every policy below evaluates per row
 | `audit_logs`, `notification_logs`, `employee_allowlist` | none | read (allowlist: write) | audit is append-only (trigger) |
 | `anon` (no JWT) | nothing except `get_public_branding()` | | |
 
-`SECURITY DEFINER` functions run as the table owner but **always** start with `private.require_employee()` / `require_admin()`, use `search_path = ''`, and derive the caller from `auth.uid()`. The service-role key (bypasses RLS) is used only by the e-mail worker and is never sent to a browser.
+`SECURITY DEFINER` functions run as the table owner but **always** start with `cabins_private.require_employee()` / `require_admin()`, use `search_path = ''`, and derive the caller from `auth.uid()`. The service-role key (bypasses RLS) is used only by the e-mail worker and is never sent to a browser.
 
 ### 3.4 Other controls
 * **XSS**: Streamlit escapes text by default; every value interpolated into custom HTML passes through `core.security.esc()`. Logo URLs must be `https://`.
@@ -128,7 +129,7 @@ erDiagram
 
 **Time.** Instants are stored as `timestamptz` (UTC internally) and converted to the office zone for validation and display. Intervals are half-open `[start, end)`, so 10:00–11:00 and 11:00–12:00 do not conflict. Wall-clock times that do not exist on a DST change day are rejected; 23/25-hour days are handled.
 
-**Migrations** (`database/migrations/`, applied in order by `scripts/apply_migrations.py`, which records checksums in `private.schema_migrations`):
+**Migrations** (`database/migrations/`, applied in order by `scripts/apply_migrations.py`, which records checksums in `cabins_private.schema_migrations`):
 
 | File | Contents |
 |---|---|
@@ -163,7 +164,7 @@ Outbox pattern: the booking transaction inserts the notification row; `claim_not
 
 Domain checks prove nothing by themselves; SSO lets the company identity provider vouch for the employee (and lets IT disable access centrally).
 
-* **Google Workspace** — enable the Google provider in Supabase Auth with a Google Cloud OAuth client of type *Internal* (only Workspace accounts of `wealthy.in` can consent). Optionally pass `hd=wealthy.in`. The `auth.users` domain trigger and `is_active_employee()` still apply.
+* **Google Workspace** — enable the Google provider in Supabase Auth with a Google Cloud OAuth client of type *Internal* (only Workspace accounts of `wealthy.in` can consent). Optionally pass `hd=wealthy.in`. The profile trigger and `is_active_employee()` still apply.
 * **Microsoft 365 / Entra ID** — enable the Azure provider in Supabase with a single-tenant app registration (`https://login.microsoftonline.com/<tenant-id>`), so only the Wealthy tenant can sign in.
 * **SAML SSO** (Supabase Pro and above) works with both and can enforce SSO-only sign-in for the domain.
 

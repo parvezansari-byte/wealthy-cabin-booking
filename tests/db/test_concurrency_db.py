@@ -33,7 +33,7 @@ def test_two_simultaneous_identical_requests(db):
     results = _race(db, [(db.employee(), cabin, start, end), (db.employee(), cabin, start, end)])
     assert sorted(r[0] for r in results) == ["error", "ok"]
     assert [r[1] for r in results if r[0] == "error"] == ["CABIN_ALREADY_BOOKED"]
-    assert db.owner("select count(*) from public.bookings where status = 'confirmed'")[0][0] == 1
+    assert db.owner("select count(*) from cabins.bookings where status = 'confirmed'")[0][0] == 1
 
 
 def test_many_simultaneous_overlapping_requests(db):
@@ -50,7 +50,7 @@ def test_many_simultaneous_overlapping_requests(db):
     assert {r[1] for r in results if r[0] == "error"} == {"CABIN_ALREADY_BOOKED"}
     # And the database agrees: no two confirmed bookings overlap.
     overlaps = db.owner("""
-        select count(*) from public.bookings a join public.bookings b
+        select count(*) from cabins.bookings a join cabins.bookings b
           on a.cabin_id = b.cabin_id and a.id < b.id
          and tstzrange(a.start_at, a.end_at, '[)') && tstzrange(b.start_at, b.end_at, '[)')
          where a.status = 'confirmed' and b.status = 'confirmed'""")[0][0]
@@ -82,7 +82,7 @@ def test_maintenance_and_booking_race_never_both_win_silently(db):
     def block():
         barrier.wait()
         try:
-            out["block"] = ("ok", db.call(admin, "select public.admin_create_maintenance(%s, %s, %s, 'Deep clean')",
+            out["block"] = ("ok", db.call(admin, "select cabins.admin_create_maintenance(%s, %s, %s, 'Deep clean')",
                                           (cabin, start, end)))
         except DbError as exc:
             out["block"] = ("error", exc.code)

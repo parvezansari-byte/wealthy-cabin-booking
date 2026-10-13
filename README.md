@@ -68,7 +68,7 @@ python scripts/apply_migrations.py
 streamlit run app.py                       # http://localhost:8501
 ```
 
-Create the first admin: sign up in the app, enter the code, then run `select private.bootstrap_first_admin('you@wealthy.in');` against the database.
+Create the first admin: sign up in the app, enter the code, then run `select cabins_private.bootstrap_first_admin('you@wealthy.in');` against the database.
 
 To send e-mails locally, set the `SMTP_*` variables and `SUPABASE_SERVICE_ROLE_KEY`, or run the worker by hand: `python -m scripts.process_notifications`.
 

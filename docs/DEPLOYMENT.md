@@ -37,20 +37,27 @@ Alternative: paste each file in `database/migrations/` **in order** into **SQL E
 Verify in SQL Editor:
 
 ```sql
-select code, name, capacity from public.cabins order by code;          -- 10 rows
-select allowed_email_domains, timezone, access_policy from public.office_settings;
+select code, name, capacity from cabins.cabins order by code;          -- 10 rows
+select allowed_email_domains, timezone, access_policy from cabins.office_settings;
 select tablename, rowsecurity from pg_tables where schemaname = 'public'; -- all true
 ```
+
+Easiest alternative: paste `database/scripts/all_migrations_for_sql_editor.sql` once into a new SQL Editor query (make sure the dropdown next to **Run** says **Primary database**, not **Logs**) and run it.
 
 **Never run `database/local/supabase_stub.sql` on Supabase** — it is only for local tests.
 
 ## 4. Configure authentication and the permitted domain
 
+**Expose the `cabins` schema (required).** The app keeps all its tables in a schema called `cabins`, so it can share a project with other apps. In Supabase go to **Project Settings → Data API** (or **API**) → **Exposed schemas**, add `cabins` to the list (keep `public` and anything else already there) and save. Without this the app gets 404 errors.
+
+
 In **Authentication**:
 
-1. **Sign In / Providers → Email**: enable the Email provider, turn **Confirm email ON**, keep "Allow new users to sign up" ON (the database trigger refuses non-`@wealthy.in` addresses, and new accounts still need approval). Set minimum password length to **10** or more.
-2. **URL Configuration**: *Site URL* = your app URL (e.g. `https://cabins.wealthy.in` or the `onrender.com` URL). Add the same URL under *Redirect URLs*.
-3. **Emails → Templates**: the app verifies with a **6-digit code**, so add the code to two templates (keep the link too — clicking it also verifies):
+> **Shared project?** Auth settings apply to every app in the project (e.g. the CRM). Only *add* things below; don't remove or replace settings the other app relies on.
+
+1. **Sign In / Providers → Email**: the Email provider must be enabled and **Confirm email ON**, and "Allow new users to sign up" ON. Non-`@wealthy.in` sign-ups are not blocked at the project level (other apps may need them) — they simply get no cabin access, and new company accounts still need approval. The app itself requires 10+ character passwords.
+2. **URL Configuration**: add your app URL (e.g. `https://wealthy-cabins.streamlit.app`) under *Redirect URLs*. Only change *Site URL* if no other app uses this project.
+3. **Emails → Templates**: the app verifies with a **6-digit code**, so *add* the code to two templates, keeping the existing link so other apps keep working:
    * *Confirm signup*: `<p>Your verification code is <strong>{{ .Token }}</strong></p>`
    * *Reset password*: `<p>Your password reset code is <strong>{{ .Token }}</strong></p>`
 4. **Emails → SMTP settings**: configure **custom SMTP** (same provider as step 5). Supabase's built-in mailer is heavily rate limited and is not meant for production.
@@ -59,7 +66,7 @@ In **Authentication**:
    * Render env var `ALLOWED_EMAIL_DOMAIN=wealthy.in`
    * Database: `office_settings.allowed_email_domains` (seeded as `{wealthy.in}`). To change it, run in SQL Editor (it cannot be changed through the app, by design):
      ```sql
-     update public.office_settings set allowed_email_domains = '{wealthy.in}' where id;
+     update cabins.office_settings set allowed_email_domains = '{wealthy.in}' where id;
      ```
 
 ## 5. Configure SMTP for booking e-mails
@@ -115,7 +122,7 @@ Push to `main` (auto-deploy) or click **Manual Deploy**. In the logs you should 
 1. In the app, **Create account** with the admin's `@wealthy.in` address and enter the e-mailed 6-digit code. They will see "awaiting approval".
 2. A Supabase project owner opens **SQL Editor** and runs (`database/scripts/bootstrap_first_admin.sql`):
    ```sql
-   select private.bootstrap_first_admin('firstname.lastname@wealthy.in');
+   select cabins_private.bootstrap_first_admin('firstname.lastname@wealthy.in');
    ```
    It refuses if an admin already exists, the address is unverified or not on the domain. It is recorded in the audit log.
 3. The admin clicks **Check again** (or signs in again) and now sees **Administration**.

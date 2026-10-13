@@ -4,7 +4,7 @@ Usage:
     DATABASE_URL=postgresql://postgres:...@db.<ref>.supabase.co:5432/postgres \
         python scripts/apply_migrations.py [--dry-run]
 
-Applied versions are recorded in private.schema_migrations with a checksum.
+Applied versions are recorded in cabins_private.schema_migrations with a checksum.
 A migration whose file changed after being applied is reported as an error:
 write a new migration instead of editing an applied one.
 """
@@ -21,8 +21,8 @@ import psycopg
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "database" / "migrations"
 
 BOOKKEEPING_SQL = """
-create schema if not exists private;
-create table if not exists private.schema_migrations (
+create schema if not exists cabins_private;
+create table if not exists cabins_private.schema_migrations (
     version     text primary key,
     checksum    text not null,
     applied_at  timestamptz not null default now()
@@ -44,7 +44,7 @@ def apply_migrations(conninfo: str, directory: Path = MIGRATIONS_DIR, dry_run: b
     with psycopg.connect(conninfo, autocommit=False) as conn:
         with conn.cursor() as cur:
             cur.execute(BOOKKEEPING_SQL)
-            cur.execute("select version, checksum from private.schema_migrations")
+            cur.execute("select version, checksum from cabins_private.schema_migrations")
             applied = dict(cur.fetchall())
         conn.commit()
 
@@ -64,7 +64,7 @@ def apply_migrations(conninfo: str, directory: Path = MIGRATIONS_DIR, dry_run: b
                 with conn.cursor() as cur:
                     cur.execute(path.read_text(encoding="utf-8"))
                     cur.execute(
-                        "insert into private.schema_migrations (version, checksum) values (%s, %s)",
+                        "insert into cabins_private.schema_migrations (version, checksum) values (%s, %s)",
                         (version, digest))
                 conn.commit()
             except Exception:

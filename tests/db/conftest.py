@@ -60,25 +60,25 @@ class DB:
 
     def employee(self, email: str | None = None, name: str = "Test Employee") -> str:
         email = email or f"emp-{uuid.uuid4().hex[:8]}@wealthy.in"
-        self.owner("insert into public.employee_allowlist (email) values (%s)", (email,))
+        self.owner("insert into cabins.employee_allowlist (email) values (%s)", (email,))
         return self.create_user(email, True, name)
 
     def admin(self, email: str | None = None) -> str:
         uid = self.employee(email or f"admin-{uuid.uuid4().hex[:8]}@wealthy.in", "Test Admin")
-        self.owner("update public.profiles set role = 'admin' where id = %s", (uid,))
+        self.owner("update cabins.profiles set role = 'admin' where id = %s", (uid,))
         return uid
 
     def status(self, uid: str) -> str:
-        return self.owner("select status from public.profiles where id = %s", (uid,))[0][0]
+        return self.owner("select status from cabins.profiles where id = %s", (uid,))[0][0]
 
     def cabin(self, code: str = "C01") -> dict:
-        row = self.owner("select id, name, capacity from public.cabins where code = %s", (code,))[0]
+        row = self.owner("select id, name, capacity from cabins.cabins where code = %s", (code,))[0]
         return {"id": str(row[0]), "name": row[1], "capacity": row[2]}
 
     def settings(self, **changes) -> None:
         assignments = sql.SQL(", ").join(
             sql.SQL("{} = {}").format(sql.Identifier(k), sql.Literal(v)) for k, v in changes.items())
-        self.owner(sql.SQL("update public.office_settings set {} where id").format(assignments).as_string())
+        self.owner(sql.SQL("update cabins.office_settings set {} where id").format(assignments).as_string())
 
     # -------------------------------------------------------------- as an API caller
     def call(self, uid: str | None, query: str, params=None, role: str = "authenticated"):
@@ -97,7 +97,7 @@ class DB:
 
     def book(self, uid: str, cabin_id: str, start: datetime, end: datetime, title: str = "Team sync",
              attendees: int = 2, notes: str | None = None) -> dict:
-        rows = self.call(uid, "select public.book_cabin(%s, %s, %s, %s, %s, %s)",
+        rows = self.call(uid, "select cabins.book_cabin(%s, %s, %s, %s, %s, %s)",
                          (cabin_id, start, end, title, attendees, notes))
         return rows[0][0]
 
@@ -131,14 +131,14 @@ def database():
 @pytest.fixture()
 def db(database: DB) -> DB:
     database.owner("""
-        truncate public.notification_logs, public.bookings, public.maintenance_blocks,
-                 public.employee_allowlist, public.audit_logs, public.profiles, public.cabins,
+        truncate cabins.notification_logs, cabins.bookings, cabins.maintenance_blocks,
+                 cabins.employee_allowlist, cabins.audit_logs, cabins.profiles, cabins.cabins,
                  auth.users cascade
     """)
     database.owner(SEED.read_text())
     # Deterministic, every-day office hours so tests do not depend on today's weekday.
     database.owner("""
-        update public.office_settings set
+        update cabins.office_settings set
           timezone = 'Asia/Kolkata', open_time = '08:00', close_time = '20:00',
           working_days = '{1,2,3,4,5,6,7}', min_booking_minutes = 15, max_booking_minutes = 120,
           slot_minutes = 15, booking_horizon_days = 60, cancel_cutoff_minutes = 0,

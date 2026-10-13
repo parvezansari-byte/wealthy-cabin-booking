@@ -5,7 +5,7 @@
 -- placeholders — edit them from Admin › Cabins.
 -- =============================================================================
 
-insert into public.cabins (code, name, location, capacity, equipment, sort_order) values
+insert into cabins.cabins (code, name, location, capacity, equipment, sort_order) values
   ('C01', 'Cabin 01', 'Floor 1 · East wing',  4, '{"TV display"}',                                   1),
   ('C02', 'Cabin 02', 'Floor 1 · East wing',  4, '{"TV display"}',                                   2),
   ('C03', 'Cabin 03', 'Floor 1 · West wing',  6, '{"TV display","Whiteboard"}',                      3),

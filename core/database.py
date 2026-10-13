@@ -18,13 +18,14 @@ from core.errors import AppError, from_postgrest
 log = logging.getLogger(__name__)
 
 PAGE = 1000  # Supabase's default PostgREST max-rows
+SCHEMA = "cabins"  # all app tables/functions; add it to Supabase › API › Exposed schemas
 
 
 def create_user_client(url: str, anon_key: str):
     from supabase import ClientOptions, create_client
 
     return create_client(url, anon_key, options=ClientOptions(
-        auto_refresh_token=True, persist_session=False, postgrest_client_timeout=15))
+        schema=SCHEMA, auto_refresh_token=True, persist_session=False, postgrest_client_timeout=15))
 
 
 def create_service_client(url: str, service_role_key: str):
@@ -33,7 +34,7 @@ def create_service_client(url: str, service_role_key: str):
     if not service_role_key:
         raise AppError("CONFIG", "SUPABASE_SERVICE_ROLE_KEY is not configured.")
     return create_client(url, service_role_key, options=ClientOptions(
-        auto_refresh_token=False, persist_session=False, postgrest_client_timeout=15))
+        schema=SCHEMA, auto_refresh_token=False, persist_session=False, postgrest_client_timeout=15))
 
 
 def _iso(dt: datetime) -> str:

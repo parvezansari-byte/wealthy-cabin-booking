@@ -7,7 +7,7 @@
 -- -----------------------------------------------------------------------------
 -- Audit log (append-only)
 -- -----------------------------------------------------------------------------
-create table if not exists public.audit_logs (
+create table if not exists cabins.audit_logs (
   id           bigint generated always as identity primary key,
   occurred_at  timestamptz not null default now(),
   actor_id     uuid,                       -- null = system / database owner
@@ -17,10 +17,10 @@ create table if not exists public.audit_logs (
   entity_id    text,
   details      jsonb not null default '{}'::jsonb
 );
-create index if not exists audit_logs_occurred_at_idx on public.audit_logs (occurred_at desc);
-create index if not exists audit_logs_entity_idx on public.audit_logs (entity_type, entity_id);
+create index if not exists audit_logs_occurred_at_idx on cabins.audit_logs (occurred_at desc);
+create index if not exists audit_logs_entity_idx on cabins.audit_logs (entity_type, entity_id);
 
-create or replace function private.block_audit_mutation()
+create or replace function cabins_private.block_audit_mutation()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -30,12 +30,12 @@ begin
 end;
 $$;
 
-drop trigger if exists audit_logs_immutable on public.audit_logs;
+drop trigger if exists audit_logs_immutable on cabins.audit_logs;
 create trigger audit_logs_immutable
-  before update or delete on public.audit_logs
-  for each row execute function private.block_audit_mutation();
+  before update or delete on cabins.audit_logs
+  for each row execute function cabins_private.block_audit_mutation();
 
-create or replace function private.write_audit(
+create or replace function cabins_private.write_audit(
   p_action text, p_entity_type text, p_entity_id text, p_details jsonb default '{}'::jsonb)
 returns void
 language plpgsql
@@ -45,7 +45,7 @@ as $$
 declare
   v_uid uuid := auth.uid();
 begin
-  insert into public.audit_logs (actor_id, actor_email, action, entity_type, entity_id, details)
+  insert into cabins.audit_logs (actor_id, actor_email, action, entity_type, entity_id, details)
   values (v_uid,
           (select u.email from auth.users u where u.id = v_uid),
           p_action, p_entity_type, p_entity_id, coalesce(p_details, '{}'::jsonb));
@@ -54,7 +54,7 @@ $$;
 
 -- Generic row-change audit trigger. Column names in TG_ARGV are redacted
 -- (their values are never copied into the log; only the fact they changed).
-create or replace function private.audit_row_change()
+create or replace function cabins_private.audit_row_change()
 returns trigger
 language plpgsql
 security definer
@@ -101,7 +101,7 @@ begin
     end if;
   end if;
 
-  perform private.write_audit(v_action, tg_table_name, v_entity_id, v_changes);
+  perform cabins_private.write_audit(v_action, tg_table_name, v_entity_id, v_changes);
   return coalesce(new, old);
 end;
 $$;
@@ -109,7 +109,7 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Profiles
 -- -----------------------------------------------------------------------------
-create table if not exists public.profiles (
+create table if not exists cabins.profiles (
   id           uuid primary key references auth.users (id) on delete restrict,
   email        text not null unique check (email = lower(email)),
   full_name    text not null default '' check (char_length(full_name) <= 120),
@@ -117,21 +117,21 @@ create table if not exists public.profiles (
   role         text not null default 'employee' check (role in ('employee', 'admin')),
   status       text not null default 'pending' check (status in ('pending', 'active', 'disabled')),
   approved_at  timestamptz,
-  approved_by  uuid references public.profiles (id),
+  approved_by  uuid references cabins.profiles (id),
   disabled_at  timestamptz,
-  disabled_by  uuid references public.profiles (id),
+  disabled_by  uuid references cabins.profiles (id),
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
-create index if not exists profiles_status_idx on public.profiles (status);
+create index if not exists profiles_status_idx on cabins.profiles (status);
 
-drop trigger if exists profiles_touch on public.profiles;
-create trigger profiles_touch before update on public.profiles
-  for each row execute function private.touch_updated_at();
+drop trigger if exists profiles_touch on cabins.profiles;
+create trigger profiles_touch before update on cabins.profiles
+  for each row execute function cabins_private.touch_updated_at();
 
 -- Defence in depth: role/status can never be changed by an API caller directly,
 -- only by SECURITY DEFINER functions (which run as the table owner).
-create or replace function private.guard_profile_privileged_columns()
+create or replace function cabins_private.guard_profile_privileged_columns()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -149,25 +149,25 @@ begin
 end;
 $$;
 
-drop trigger if exists profiles_guard on public.profiles;
-create trigger profiles_guard before update on public.profiles
-  for each row execute function private.guard_profile_privileged_columns();
+drop trigger if exists profiles_guard on cabins.profiles;
+create trigger profiles_guard before update on cabins.profiles
+  for each row execute function cabins_private.guard_profile_privileged_columns();
 
-drop trigger if exists profiles_audit on public.profiles;
-create trigger profiles_audit after insert or update on public.profiles
-  for each row execute function private.audit_row_change();
+drop trigger if exists profiles_audit on cabins.profiles;
+create trigger profiles_audit after insert or update on cabins.profiles
+  for each row execute function cabins_private.audit_row_change();
 
 -- -----------------------------------------------------------------------------
 -- Allowlist of pre-approved employee addresses (used by access_policy='approval')
 -- -----------------------------------------------------------------------------
-create table if not exists public.employee_allowlist (
+create table if not exists cabins.employee_allowlist (
   email       text primary key check (email = lower(btrim(email))),
   note        text check (note is null or char_length(note) <= 200),
-  added_by    uuid references public.profiles (id),
+  added_by    uuid references cabins.profiles (id),
   created_at  timestamptz not null default now()
 );
 
-create or replace function private.validate_allowlist_entry()
+create or replace function cabins_private.validate_allowlist_entry()
 returns trigger
 language plpgsql
 security definer
@@ -175,7 +175,7 @@ set search_path = ''
 as $$
 begin
   new.email := lower(btrim(new.email));
-  if not private.is_allowed_email(new.email) then
+  if not cabins_private.is_allowed_email(new.email) then
     raise exception 'EMAIL_DOMAIN_NOT_ALLOWED'
       using detail = 'Only addresses on the company domain can be allowlisted.';
   end if;
@@ -184,13 +184,13 @@ begin
 end;
 $$;
 
-drop trigger if exists employee_allowlist_validate on public.employee_allowlist;
-create trigger employee_allowlist_validate before insert or update on public.employee_allowlist
-  for each row execute function private.validate_allowlist_entry();
+drop trigger if exists employee_allowlist_validate on cabins.employee_allowlist;
+create trigger employee_allowlist_validate before insert or update on cabins.employee_allowlist
+  for each row execute function cabins_private.validate_allowlist_entry();
 
-drop trigger if exists employee_allowlist_audit on public.employee_allowlist;
-create trigger employee_allowlist_audit after insert or update or delete on public.employee_allowlist
-  for each row execute function private.audit_row_change();
+drop trigger if exists employee_allowlist_audit on cabins.employee_allowlist;
+create trigger employee_allowlist_audit after insert or update or delete on cabins.employee_allowlist
+  for each row execute function cabins_private.audit_row_change();
 
 -- -----------------------------------------------------------------------------
 -- Activation logic shared by the auth.users triggers and the allowlist.
@@ -200,7 +200,7 @@ create trigger employee_allowlist_audit after insert or update or delete on publ
 --   * policy = 'domain', or the address is on employee_allowlist
 -- Disabled profiles are never re-activated automatically.
 -- -----------------------------------------------------------------------------
-create or replace function private.sync_profile_activation(p_user_id uuid)
+create or replace function cabins_private.sync_profile_activation(p_user_id uuid)
 returns void
 language plpgsql
 security definer
@@ -216,104 +216,103 @@ begin
   end if;
   v_email := lower(btrim(v_user.email));
 
-  update public.profiles set email = v_email
+  update cabins.profiles set email = v_email
    where id = p_user_id and email is distinct from v_email;
 
   if v_user.email_confirmed_at is not null
-     and private.is_allowed_email(v_email)
-     and ((private.settings()).access_policy = 'domain'
-          or exists (select 1 from public.employee_allowlist a where a.email = v_email)) then
-    update public.profiles
+     and cabins_private.is_allowed_email(v_email)
+     and ((cabins_private.settings()).access_policy = 'domain'
+          or exists (select 1 from cabins.employee_allowlist a where a.email = v_email)) then
+    update cabins.profiles
        set status = 'active', approved_at = now(), approved_by = null
      where id = p_user_id and status = 'pending';
   end if;
 end;
 $$;
 
--- BEFORE INSERT/UPDATE OF email on auth.users: refuse non-company addresses even
--- if someone calls the Supabase Auth API directly (bypassing this app).
-create or replace function private.enforce_auth_email_domain()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if not private.is_allowed_email(new.email) then
-    raise exception 'EMAIL_DOMAIN_NOT_ALLOWED'
-      using errcode = '42501',
-            detail = 'Only company e-mail addresses may register.';
-  end if;
-  return new;
-end;
-$$;
-
-create or replace function private.handle_auth_user_insert()
-returns trigger
+-- -----------------------------------------------------------------------------
+-- auth.users hooks.
+-- This Supabase project may be shared with other apps, so these hooks NEVER block
+-- or fail a sign-up: non-company users simply get no cabin profile (and therefore
+-- no access). Company-domain users get a 'pending' profile that becomes active
+-- per the access policy. Any unexpected error is downgraded to a warning so the
+-- other app's authentication can never be broken by this one.
+-- -----------------------------------------------------------------------------
+create or replace function cabins_private.ensure_profile(p_user_id uuid)
+returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_name text := left(btrim(coalesce(new.raw_user_meta_data ->> 'full_name', '')), 120);
+  v_user auth.users%rowtype;
 begin
-  insert into public.profiles (id, email, full_name)
-  values (new.id, lower(btrim(new.email)), v_name)
-  on conflict (id) do nothing;
-  perform private.sync_profile_activation(new.id);
-  return new;
+  select * into v_user from auth.users where id = p_user_id;
+  if not found then
+    return;
+  end if;
+  if cabins_private.is_allowed_email(v_user.email) then
+    insert into cabins.profiles (id, email, full_name)
+    values (v_user.id, lower(btrim(v_user.email)),
+            left(btrim(coalesce(v_user.raw_user_meta_data ->> 'full_name', '')), 120))
+    on conflict (id) do nothing;
+  end if;
+  perform cabins_private.sync_profile_activation(p_user_id);
 end;
 $$;
 
-create or replace function private.handle_auth_user_update()
+create or replace function cabins_private.handle_auth_user_change()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  perform private.sync_profile_activation(new.id);
+  begin
+    perform cabins_private.ensure_profile(new.id);
+  exception when others then
+    raise warning 'cabins: could not sync profile for user %: %', new.id, sqlerrm;
+  end;
   return new;
 end;
 $$;
 
+-- Remove the project-wide sign-up block used by earlier single-app versions.
 drop trigger if exists wealthy_enforce_email_domain on auth.users;
-create trigger wealthy_enforce_email_domain
-  before insert or update of email on auth.users
-  for each row execute function private.enforce_auth_email_domain();
+drop function if exists cabins_private.enforce_auth_email_domain();
 
 drop trigger if exists wealthy_on_auth_user_created on auth.users;
 create trigger wealthy_on_auth_user_created
   after insert on auth.users
-  for each row execute function private.handle_auth_user_insert();
+  for each row execute function cabins_private.handle_auth_user_change();
 
 drop trigger if exists wealthy_on_auth_user_updated on auth.users;
 create trigger wealthy_on_auth_user_updated
   after update of email, email_confirmed_at on auth.users
-  for each row execute function private.handle_auth_user_update();
+  for each row execute function cabins_private.handle_auth_user_change();
 
 -- When an admin allowlists an address whose owner already verified it, activate them.
-create or replace function private.handle_allowlist_insert()
+create or replace function cabins_private.handle_allowlist_insert()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  perform private.sync_profile_activation(p.id)
-     from public.profiles p where p.email = new.email;
+  perform cabins_private.sync_profile_activation(p.id)
+     from cabins.profiles p where p.email = new.email;
   return new;
 end;
 $$;
 
-drop trigger if exists employee_allowlist_activate on public.employee_allowlist;
-create trigger employee_allowlist_activate after insert on public.employee_allowlist
-  for each row execute function private.handle_allowlist_insert();
+drop trigger if exists employee_allowlist_activate on cabins.employee_allowlist;
+create trigger employee_allowlist_activate after insert on cabins.employee_allowlist
+  for each row execute function cabins_private.handle_allowlist_insert();
 
 -- -----------------------------------------------------------------------------
 -- Authorization helpers used by RLS policies and RPCs
 -- -----------------------------------------------------------------------------
-create or replace function private.is_active_employee()
+create or replace function cabins_private.is_active_employee()
 returns boolean
 language sql
 stable
@@ -322,7 +321,7 @@ set search_path = ''
 as $$
   select exists (
     select 1
-      from public.profiles p
+      from cabins.profiles p
       join auth.users u on u.id = p.id
      where p.id = auth.uid()
        and p.status = 'active'
@@ -330,20 +329,25 @@ as $$
        and u.deleted_at is null
        and (u.banned_until is null or u.banned_until < now())
        and lower(u.email) = p.email
-       and private.is_allowed_email(u.email)
+       and cabins_private.is_allowed_email(u.email)
   )
 $$;
 
-create or replace function private.is_admin()
+create or replace function cabins_private.is_admin()
 returns boolean
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select private.is_active_employee()
-     and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  select cabins_private.is_active_employee()
+     and exists (select 1 from cabins.profiles p where p.id = auth.uid() and p.role = 'admin')
 $$;
 
-grant execute on function private.is_active_employee() to authenticated, service_role;
-grant execute on function private.is_admin()           to authenticated, service_role;
+grant execute on function cabins_private.is_active_employee() to authenticated, service_role;
+grant execute on function cabins_private.is_admin()           to authenticated, service_role;
+
+-- Company users who signed up before this app was installed get a profile now.
+select cabins_private.ensure_profile(u.id)
+  from auth.users u
+ where cabins_private.is_allowed_email(u.email);
