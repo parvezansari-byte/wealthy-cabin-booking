@@ -1,0 +1,26 @@
+[server]
+headless = true
+runOnSave = false
+enableCORS = true
+enableXsrfProtection = true   # CSRF protection for widget/websocket traffic
+maxUploadSize = 1             # MB — the app has no file uploads
+fileWatcherType = "none"
+
+[client]
+showErrorDetails = "none"     # never show stack traces to users (logged server-side)
+toolbarMode = "minimal"
+showSidebarNavigation = true
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+magicEnabled = false
+
+[theme]
+base = "light"
+primaryColor = "#1E40AF"
+backgroundColor = "#F5F7FB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0F172A"
+font = "sans serif"

@@ -1,0 +1,84 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Secrets marked "sync: false" are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: wealthy-cabin-booking
+    runtime: python
+    plan: starter              # keep ONE instance: Streamlit sessions live in memory
+    region: singapore          # closest Render region to India
+    buildCommand: pip install -r requirements.txt
+    startCommand: >-
+      streamlit run app.py
+      --server.port $PORT
+      --server.address 0.0.0.0
+      --server.headless true
+    healthCheckPath: /_stcore/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: ALLOWED_EMAIL_DOMAIN
+        value: wealthy.in
+      - key: OFFICE_TIMEZONE
+        value: Asia/Kolkata
+      - key: APP_NAME
+        value: Wealthy Office Cabin Booking
+      - key: COMPANY_NAME
+        value: Wealthy
+      - key: APP_ENV
+        value: production
+      - key: NOTIFICATIONS_ENABLED
+        value: "true"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+  # Sends queued e-mails, retries failures and queues reminders every 5 minutes.
+  - type: cron
+    name: wealthy-cabin-notifications
+    runtime: python
+    plan: starter
+    region: singapore
+    schedule: "*/5 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m scripts.process_notifications
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: ALLOWED_EMAIL_DOMAIN
+        value: wealthy.in
+      - key: APP_NAME
+        value: Wealthy Office Cabin Booking
+      - key: NOTIFICATIONS_ENABLED
+        value: "true"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false

@@ -1,0 +1,7 @@
+# Runtime dependencies (pinned versions the test suite was run against)
+streamlit==1.65.0
+supabase==2.32.0
+altair==6.3.0
+pandas==3.0.5
+python-dotenv==1.2.3
+psycopg[binary]==3.3.6     # used by scripts/apply_migrations.py
