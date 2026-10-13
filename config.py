@@ -149,6 +149,23 @@ def load_config(env: Mapping[str, str] | None = None) -> AppConfig:
     )
 
 
+def _import_streamlit_secrets() -> None:
+    """Streamlit Community Cloud stores settings in the app's Secrets box (st.secrets),
+    not in real environment variables. Copy top-level values into os.environ so the
+    same configuration code works on Streamlit Cloud, Render and locally.
+    Real environment variables always win."""
+    try:
+        import streamlit as st
+
+        items = list(st.secrets.items())
+    except Exception:  # no secrets configured (Render / local .env) — nothing to do
+        return
+    for key, value in items:
+        if isinstance(value, (str, int, float, bool)) and key not in os.environ:
+            os.environ[key] = str(value).lower() if isinstance(value, bool) else str(value)
+
+
 @lru_cache(maxsize=1)
 def get_config() -> AppConfig:
+    _import_streamlit_secrets()
     return load_config()
