@@ -8,29 +8,63 @@ PALETTE = {
     "maintenance": ("#344054", "#EAECF0", "#C9CED8"),
     "inactive": ("#667085", "#F9FAFB", "#D0D5DD"),
 }
+# Wealthy brand colours — change these three to the exact brand values if needed.
+BRAND_PRIMARY = "#5B2BD6"   # buttons, links, highlights (Wealthy purple)
+BRAND_DEEP = "#24104F"      # sidebar / banner base
+BRAND_ACCENT = "#A78BFA"    # soft glows
+
 ICONS = {"available": "●", "occupied": "■", "mine": "★", "maintenance": "▲", "inactive": "○"}
 
 CSS = """
 <style>
+:root { --wcb-brand: __PRIMARY__; --wcb-brand-deep: __DEEP__; --wcb-brand-accent: __ACCENT__; }
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 :root {
-  --wcb-navy: #12245A; --wcb-primary: #1E40AF; --wcb-ink: #0F172A; --wcb-muted: #5B6475;
+  --wcb-navy: var(--wcb-brand-deep); --wcb-primary: var(--wcb-brand); --wcb-ink: #0F172A; --wcb-muted: #5B6475;
   --wcb-line: #E3E8F2; --wcb-card: #FFFFFF; --wcb-bg: #F5F7FB; --wcb-radius: 14px;
 }
 html, body, [class*="css"], .stMarkdown, .stButton button, input, textarea, select {
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
 }
+/* ---- Background: soft brand-coloured glows over a faint dot grid ---- */
+[data-testid="stAppViewContainer"], .stApp {
+  background:
+    radial-gradient(900px 520px at 8% -8%, rgba(91, 43, 214, .22), transparent 60%),
+    radial-gradient(760px 480px at 100% 0%, rgba(167, 139, 250, .26), transparent 62%),
+    radial-gradient(820px 560px at 85% 105%, rgba(236, 72, 153, .10), transparent 60%),
+    radial-gradient(rgba(36, 16, 79, .07) 1px, transparent 1.2px) 0 0 / 22px 22px,
+    linear-gradient(180deg, #FAF8FF 0%, #F1EDFB 100%) !important;
+  background-attachment: fixed !important;
+}
+[data-testid="stHeader"] { background: transparent !important; }
 .block-container { padding-top: 3.75rem; padding-bottom: 3rem; max-width: 1280px; }
 h1, h2, h3 { letter-spacing: -0.01em; color: var(--wcb-ink); }
-[data-testid="stSidebar"] { background: var(--wcb-navy); }
+[data-testid="stSidebar"] {
+  background:
+    radial-gradient(420px 300px at 0% 0%, rgba(167, 139, 250, .28), transparent 70%),
+    radial-gradient(380px 320px at 100% 100%, rgba(236, 72, 153, .16), transparent 70%),
+    linear-gradient(180deg, #1A0B3D 0%, #24104F 55%, #3A1A80 100%) !important;
+}
+/* Cards float slightly above the background */
+.wcb-metric, .wcb-card, .wcb-row, div[data-testid="stForm"] {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -12px rgba(36, 16, 79, .18);
+}
+.wcb-card { transition: transform .15s ease, box-shadow .15s ease; }
+.wcb-card:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(15, 23, 42, .05), 0 16px 32px -14px rgba(36, 16, 79, .28); }
+.wcb-hero { position: relative; overflow: hidden; box-shadow: 0 18px 40px -20px rgba(36, 16, 79, .55); }
+.wcb-hero::after { content: ""; position: absolute; right: -60px; top: -80px; width: 280px; height: 280px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(196, 181, 253, .40), transparent 65%); pointer-events: none; }
+.wcb-hero::before { content: ""; position: absolute; right: 120px; bottom: -120px; width: 240px; height: 240px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(244, 114, 182, .22), transparent 65%); pointer-events: none; }
+.wcb-auth-brand .logo { filter: drop-shadow(0 6px 12px rgba(36, 16, 79, .25)); }
 [data-testid="stSidebar"] * { color: #E7ECF8 !important; }
 [data-testid="stSidebar"] a[aria-current="page"] { background: rgba(255,255,255,.12); border-radius: 8px; }
 [data-testid="stSidebar"] .stButton button { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2); }
 
-.wcb-hero { background: linear-gradient(120deg, #12245A 0%, #1E40AF 100%); color: #fff; border-radius: var(--wcb-radius);
+.wcb-hero { background: linear-gradient(120deg, #24104F 0%, #4A21B8 55%, #6D3BE8 100%); color: #fff; border-radius: var(--wcb-radius);
   padding: 22px 26px; margin-bottom: 18px; }
 .wcb-hero h1 { color: #fff; font-size: 1.55rem; margin: 0 0 4px 0; padding: 0; }
-.wcb-hero p { margin: 0; color: #D6DEF5; font-size: .92rem; }
+.wcb-hero p { margin: 0; color: #E4DCFB; font-size: .92rem; }
 .wcb-page-title { margin: 0 0 2px 0; font-size: 1.75rem; line-height: 1.25; font-weight: 700; color: var(--wcb-ink); }
 .wcb-page-sub { margin: 0 0 18px 0; color: var(--wcb-muted); font-size: .92rem; }
 
@@ -71,6 +105,10 @@ h1, h2, h3 { letter-spacing: -0.01em; color: var(--wcb-ink); }
 
 .stButton button[kind="primary"] { background: var(--wcb-primary); border-color: var(--wcb-primary); }
 .stButton button { border-radius: 10px; font-weight: 600; }
+.stButton button[kind="primary"]:hover { filter: brightness(1.08); }
+button[data-baseweb="tab"][aria-selected="true"] { color: var(--wcb-brand) !important; }
+div[data-baseweb="tab-highlight"] { background-color: var(--wcb-brand) !important; }
+a, a:visited { color: var(--wcb-brand); }
 div[data-testid="stForm"] { border-radius: var(--wcb-radius); border-color: var(--wcb-line); background: var(--wcb-card); }
 @media (max-width: 640px) {
   .wcb-hero { padding: 16px; } .wcb-hero h1 { font-size: 1.2rem; }
@@ -81,4 +119,6 @@ div[data-testid="stForm"] { border-radius: var(--wcb-radius); border-color: var(
 
 
 def inject_css() -> None:
-    st.markdown(CSS, unsafe_allow_html=True)
+    css = (CSS.replace("__PRIMARY__", BRAND_PRIMARY).replace("__DEEP__", BRAND_DEEP)
+              .replace("__ACCENT__", BRAND_ACCENT))
+    st.markdown(css, unsafe_allow_html=True)
