@@ -9,7 +9,7 @@ from core.booking_service import cabin_status
 from core.timeutil import day_bounds, fmt_date, fmt_range, local_datetime, now_utc
 from ui.components import cabin_card, empty_state, flash, legend, page_header, timeline_chart
 from ui.context import AppContext
-from ui.dialogs import default_slot, open_booking, render_open_dialogs
+from ui.dialogs import default_slot, just_booked_panel, open_booking, render_open_dialogs
 from views.shared import guarded, load_cabins, load_intervals
 
 
@@ -67,6 +67,7 @@ def render(ctx: AppContext) -> None:
     page_header("Cabin availability", f"All times are in {rules.timezone}. Bookings can last "
                 f"{rules.min_minutes}–{rules.max_minutes} minutes, {rules.open_time:%H:%M}–{rules.close_time:%H:%M}.")
     flash()
+    just_booked_panel(ctx)
     render_open_dialogs(ctx)
 
     d_day, d_start = default_slot(ctx)

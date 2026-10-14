@@ -166,7 +166,7 @@ class Mailer:
     def __init__(self, fail=False):
         self.sent, self.fail = [], fail
 
-    def send(self, to, subject, text, html):
+    def send(self, to, subject, text, html, calendar=None):
         if self.fail:
             import smtplib
             raise smtplib.SMTPAuthenticationError(535, b"5.7.8 bad credentials for secret-user")

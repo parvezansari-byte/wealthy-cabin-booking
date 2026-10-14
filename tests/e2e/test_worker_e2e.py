@@ -8,10 +8,11 @@ class Mailer:
     def __init__(self, fail=False):
         self.fail, self.sent = fail, []
 
-    def send(self, to, subject, text, html):
+    def send(self, to, subject, text, html, calendar=None):
         if self.fail:
             raise ConnectionRefusedError("smtp down")
         self.sent.append((to, subject, text))
+        self.calendars = getattr(self, 'calendars', []) + [calendar]
 
 
 def test_worker_delivers_confirmation_and_cancellation(db):  # noqa: F811
@@ -27,6 +28,11 @@ def test_worker_delivers_confirmation_and_cancellation(db):  # noqa: F811
     db.call(uid, "select cabins.cancel_booking(%s)", (booking["id"],))
     assert worker.process()["sent"] == 1
     assert "Booking cancelled" in mailer.sent[1][1]
+    (name1, invite), (name2, cancel) = mailer.calendars
+    assert name1 == f"{booking['reference']}.ics" and "METHOD:PUBLISH" in invite
+    assert "METHOD:CANCEL" in cancel and "STATUS:CANCELLED" in cancel
+    uid = f"UID:{booking['id']}@wealthy-cabin-booking"
+    assert uid in invite and uid in cancel  # same event, so calendars remove it
     statuses = db.owner("select kind, status from cabins.notification_logs order by created_at")
     assert statuses == [("booking_confirmed", "sent"), ("booking_cancelled", "sent")]
 

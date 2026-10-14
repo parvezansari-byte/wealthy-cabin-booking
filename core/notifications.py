@@ -41,6 +41,23 @@ INTROS = {
 }
 
 
+CANCEL_KINDS = {"booking_cancelled", "booking_cancelled_by_admin", "maintenance_cancellation"}
+
+
+def calendar_attachment(item: dict) -> tuple[str, str] | None:
+    """.ics invite for confirmations; a CANCEL update (same UID) for cancellations."""
+    from core.calendar_links import CalendarEvent, ics, ics_filename
+
+    if item["kind"] == "reminder":
+        return None
+    booking = {"id": item["booking_id"], "reference": item["reference"], "title": item.get("title"),
+               "start_at": item["start_at"], "end_at": item["end_at"]}
+    ev = CalendarEvent.from_booking(booking, item["cabin_name"], item.get("cabin_location"),
+                                    item.get("app_name") or "Wealthy Office Cabin Booking")
+    cancel = item["kind"] in CANCEL_KINDS
+    return ics_filename(booking), ics(ev, cancel=cancel, sequence=1 if cancel else 0)
+
+
 def render_email(item: dict) -> tuple[str, str, str]:
     """Return (subject, plain_text, html) for a claimed notification row."""
     tz = ZoneInfo(item.get("timezone") or "Asia/Kolkata")
@@ -85,7 +102,8 @@ class SmtpMailer:
         self.cfg = cfg
         self.app_name = app_name
 
-    def send(self, to: str, subject: str, text: str, html: str) -> None:
+    def send(self, to: str, subject: str, text: str, html: str, calendar: tuple[str, str] | None = None) -> None:
+        """calendar = (filename, ics_text) attaches a calendar invite."""
         msg = EmailMessage()
         msg["From"] = formataddr((self.app_name, self.cfg.sender))
         msg["To"] = to
@@ -93,6 +111,11 @@ class SmtpMailer:
         msg["Message-ID"] = make_msgid(domain=self.cfg.sender.rsplit("@", 1)[-1])
         msg.set_content(text)
         msg.add_alternative(html, subtype="html")
+        if calendar:
+            filename, body = calendar
+            method = "CANCEL" if "METHOD:CANCEL" in body else "PUBLISH"
+            msg.add_attachment(body.encode("utf-8"), maintype="text", subtype="calendar",
+                               filename=filename, params={"method": method})
 
         context = ssl.create_default_context()
         if self.cfg.use_ssl:
@@ -142,7 +165,8 @@ class NotificationWorker:
                 continue
             try:
                 subject, text, html = render_email(item)
-                self.mailer.send(item["recipient_email"], subject, text, html)
+                self.mailer.send(item["recipient_email"], subject, text, html,
+                                 calendar=calendar_attachment(item))
             except Exception as exc:  # noqa: BLE001 - every failure is recorded and retried
                 log.warning("Notification %s failed: %s", nid, _safe_error(exc))
                 self._complete(nid, "failed", _safe_error(exc))

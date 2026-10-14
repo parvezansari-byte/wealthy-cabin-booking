@@ -201,3 +201,21 @@ def test_admin_approves_and_edits_cabin_through_ui(app_env, monkeypatch):
     assert not at.exception, at.exception
     assert db.status(pending) == "active"
     assert "can now book cabins" in _texts(at)
+
+
+def test_add_to_calendar_after_booking_and_in_my_bookings(app_env, monkeypatch):
+    db, passwords = app_env
+    db.employee("cal@wealthy.in", name="Cal User")
+    passwords["cal@wealthy.in"] = PASSWORD
+    at = _view(monkeypatch, "cabins", "cal@wealthy.in").run()
+    _labelled(at.button, "Book Cabin 04").click()
+    at.run()
+    _labelled(at.text_input, "Meeting title / purpose *").input("Calendar check")
+    _labelled(at.button, "Confirm booking").click()
+    at.run()
+    assert not at.exception, at.exception
+    labels = [b.label for b in at.get("download_button")] if hasattr(at, "get") else []
+    assert any(".ics" in l for l in labels), labels
+    at = _view(monkeypatch, "my_bookings", "cal@wealthy.in").run()
+    assert not at.exception, at.exception
+    assert any(".ics" in b.label for b in at.get("download_button"))

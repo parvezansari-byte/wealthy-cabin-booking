@@ -164,3 +164,17 @@ def timeline_chart(rules: Rules, cabins: list[dict], intervals: list[Interval], 
         .properties(height=max(220, 34 * len(order)))
     )
     st.altair_chart(chart, width="stretch")
+
+
+def add_to_calendar(booking: dict, cabin_name: str, cabin_location: str | None, app_name: str,
+                    app_url: str, key: str, label: str = "📅 Add to calendar") -> None:
+    """Popover with Google / Outlook links and an .ics download for one booking."""
+    from core.calendar_links import CalendarEvent, google_url, ics, ics_filename, outlook_url
+
+    ev = CalendarEvent.from_booking(booking, cabin_name, cabin_location, app_name, app_url)
+    with st.popover(label, width="stretch"):
+        st.link_button("Google Calendar", google_url(ev), width="stretch")
+        st.link_button("Outlook (work / Microsoft 365)", outlook_url(ev, work=True), width="stretch")
+        st.link_button("Outlook.com", outlook_url(ev, work=False), width="stretch")
+        st.download_button("Download .ics (any calendar app)", ics(ev), file_name=ics_filename(booking),
+                           mime="text/calendar", key=f"ics_{key}", width="stretch")

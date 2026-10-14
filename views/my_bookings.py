@@ -7,9 +7,9 @@ import streamlit as st
 
 from core.booking_service import can_employee_cancel
 from core.timeutil import now_utc, parse_ts
-from ui.components import booking_row_html, empty_state, flash, page_header
+from ui.components import add_to_calendar, booking_row_html, empty_state, flash, page_header
 from ui.context import AppContext
-from ui.dialogs import open_booking, open_cancel, render_open_dialogs
+from ui.dialogs import just_booked_panel, open_booking, open_cancel, render_open_dialogs
 from views.shared import guarded, load_cabins
 
 
@@ -42,6 +42,7 @@ def render(ctx: AppContext) -> None:
     tz, now, rules = ctx.tz, now_utc(), ctx.rules
     page_header("My bookings", "Booking references, history and cancellations. Times in " + rules.timezone + ".")
     flash()
+    just_booked_panel(ctx)
     render_open_dialogs(ctx)
     bookings = guarded(ctx.repo.my_bookings, ctx.access.user_id)
 
@@ -67,9 +68,13 @@ def render(ctx: AppContext) -> None:
             st.caption(f"Bookings can be cancelled up to {rules.cancel_cutoff_minutes} minutes before they start.")
         for b in upcoming:
             started = parse_ts(b["start_at"]) <= now
-            left, right = st.columns([5, 1.2], vertical_alignment="center")
+            left, mid, right = st.columns([5, 1.5, 1.2], vertical_alignment="center")
             left.markdown(booking_row_html(b, tz, "occupied" if started else "mine",
                                            "In progress" if started else "Upcoming"), unsafe_allow_html=True)
+            with mid:
+                cabin = b.get("cabins") or {}
+                add_to_calendar(b, cabin.get("name", "Cabin"), cabin.get("location"), ctx.app_name,
+                                ctx.cfg.app_base_url, key=f"mb_{b['id']}", label="📅 Calendar")
             if can_employee_cancel(rules, b, now):
                 if right.button("Cancel", key=f"mb_cancel_{b['id']}", width="stretch"):
                     open_cancel(b)

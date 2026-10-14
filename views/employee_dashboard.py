@@ -10,7 +10,7 @@ from core.security import esc
 from core.timeutil import fmt_date, fmt_range, now_utc, parse_ts, round_up
 from ui.components import booking_row_html, cabin_card, empty_state, flash, legend, metric
 from ui.context import AppContext
-from ui.dialogs import open_booking, render_open_dialogs
+from ui.dialogs import just_booked_panel, open_booking, render_open_dialogs
 from views.shared import guarded, load_cabins, load_intervals
 
 
@@ -29,6 +29,7 @@ def render(ctx: AppContext) -> None:
         f'<p>{esc(fmt_date(local_now))} · {local_now:%H:%M} · Office time zone: {esc(rules.timezone)}</p></div>',
         unsafe_allow_html=True)
     flash()
+    just_booked_panel(ctx)
     render_open_dialogs(ctx)
 
     cabins = guarded(load_cabins, ctx)

@@ -113,6 +113,7 @@ def booking_dialog(ctx: AppContext, cabins: list[dict], cabin_id: str | None = N
         msg = (f"Booked {b['cabin_name']} on {fmt_date(s, tz)}, {fmt_range(s, e, tz)}. "
                f"Reference **{b['reference']}**. {outcome.email_note}").strip()
         st.session_state.flash = ("success", msg)
+        st.session_state.just_booked = {**b, "cabin_location": cabin.get("location")}
         _dismiss_booking()
         st.rerun()
 
@@ -172,3 +173,16 @@ def render_open_dialogs(ctx: AppContext, cabins: list[dict] | None = None) -> No
     elif CANCEL_KEY in st.session_state:
         spec = st.session_state[CANCEL_KEY]
         cancel_dialog(ctx, spec["booking"], as_admin=spec["as_admin"])
+
+
+def just_booked_panel(ctx: AppContext) -> None:
+    """After a successful booking, offer to add it to the person's calendar."""
+    from ui.components import add_to_calendar
+
+    b = st.session_state.pop("just_booked", None)
+    if not b:
+        return
+    c1, _ = st.columns([1, 3])
+    with c1:
+        add_to_calendar(b, b.get("cabin_name", "Cabin"), b.get("cabin_location"), ctx.app_name,
+                        ctx.cfg.app_base_url, key=f"new_{b['id']}", label="📅 Add this booking to your calendar")
